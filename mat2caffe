@@ -1,0 +1,89 @@
+function mat2caffe(net, filename)
+    if ~isstruct(net)
+        return;
+    end
+    words = {'conv','relu','bnorm','loss'};
+    values = {'Convolutional','ReLU','BatchNorm','Loss'};
+    dict = containers.Map(words,values);
+    text = '';
+    lastLayer='';
+    for i= 1:numel(net.layers)
+       if strcmp(lastLayer,'')
+           lastLayer = net.layers{i};
+       end
+       switch(net.layers{i}.type)
+           case 'conv'
+               text = strcat(text, convT(net.layers{i},lastLayer));
+               lastLayer= net.layers{i};
+           case 'relu'
+               text = strcat(text, reluT(net.layers{i},lastLayer));
+           case 'bnorm'
+               text = strcat(text, bnormT(net.layers{i},lastLayer));
+           case 'loss'
+               text = strcat(text, lossT(net.layers{i},lastLayer));
+       end
+    end
+    fh = fopen(filename, 'w+');
+    fprintf(fh, text);
+end
+
+function [text] = convT(layer, lastLayer)
+
+	text='layer{\n';
+	if ~strcmp(layer.type, 'conv')
+        return ;
+    else
+        text =strcat(text,'\tname: "',layer.name,'"\n');
+        text =strcat(text,'\ttype: "Convolution"\n');
+        text =strcat(text,'\tbottom:"',lastLayer.name,'"\n');
+        text =strcat(text,'\ttop:"',layer.name,'"\n');
+        text =strcat(text,'\tparam{ name: "',layer.name,'_w" lr_mult:1 decay_mult:1}\n');
+        text =strcat(text,'\tparam{ name: "',layer.name,'_b" lr_mult:1 decay_mult:0}\n');
+        text = strcat(text, '\tconvolution_param {\n\t\tnum_output: ',num2str(size(layer.weights{1}, 4)), ...
+            '\n\t\tkernel_size: ',num2str(size(layer.weights{1}, 1)), '\n\t\tstride: ', num2str(layer.stride), ...
+            '\n\t\tpad: ', num2str(layer.pad), ...
+            '\n\t\tweight_filler{ type: "gaussian" std: 0.1}\n', ...
+            '\t\tbias_filler{ type: "constant" value: 0 }\n\t}\n');
+        text = strcat(text,'}\n\n');
+    end
+end
+function [text] = reluT(layer, lastLayer)
+
+	if ~strcmp(layer.type, 'relu')
+        return ;
+    else
+        text='layer{\n';
+        text =strcat(text,'\tname: "',layer.name,'"\n');
+        text =strcat(text,'\ttype: "ReLU"\n');
+        text =strcat(text,'\tbottom:"',lastLayer.name,'"\n');
+        text =strcat(text,'\ttop:"',lastLayer.name,'"\n');
+        text = strcat(text,'}\n\n');
+    end
+end
+function [text] = bnormT(layer, lastLayer)
+
+	if ~strcmp(layer.type, 'bnorm')
+        return ;
+    else
+        text='layer{\n';
+        text =strcat(text,'\tname: "',layer.name,'"\n');
+        text =strcat(text,'\ttype: "BatchNorm"\n');
+        text =strcat(text,'\tbottom:"',lastLayer.name,'"\n');
+        text =strcat(text,'\ttop:"',lastLayer.name,'"\n');
+        text =strcat(text,'\tbatch_norm_param{\n\t\tuse_global_stats: false\n');
+        text = strcat(text,'\t}\n}\n\n');
+    end
+end
+function [text] = lossT(layer, lastLayer)
+   
+	if ~strcmp(layer.type, 'loss')
+        return ;
+    else
+        text='layer{\n';
+        text =strcat(text,'\tname: "',layer.name,'"\n');
+        text =strcat(text,'\ttype: "Loss"\n');
+        text =strcat(text,'\tbottom:"',lastLayer.name,'"\n');
+        text =strcat(text,'\ttop:"',layer.name,'"\n');
+        text = strcat(text,'}\n\n');
+    end
+end
